@@ -45,6 +45,7 @@ import org.dspace.content.Bitstream;
 import org.dspace.content.Bundle;
 import org.dspace.content.Collection;
 import org.dspace.content.DCDate;
+import org.dspace.content.DSpaceObject;
 import org.dspace.content.Item;
 import org.dspace.content.MetadataField;
 import org.dspace.content.MetadataValue;
@@ -60,6 +61,11 @@ import org.dspace.core.Context;
 import org.dspace.core.I18nUtil;
 import org.dspace.core.Utils;
 import org.dspace.core.factory.CoreServiceFactory;
+import org.dspace.discovery.DiscoverQuery;
+import org.dspace.discovery.DiscoverResult;
+import org.dspace.discovery.SearchService;
+import org.dspace.discovery.SearchServiceException;
+import org.dspace.discovery.SearchUtils;
 import org.dspace.eperson.Group;
 import org.dspace.eperson.factory.EPersonServiceFactory;
 import org.dspace.eperson.service.GroupService;
@@ -452,6 +458,7 @@ public class ItemTag extends TagSupport {
             boolean isNoBreakLine = false;
             boolean isDisplay = false;
             boolean isLinkSearch = false;
+            boolean isJournalTitle = false;
             boolean isSearchTitle = false;
             boolean isThermometer = false;
 
@@ -476,6 +483,7 @@ public class ItemTag extends TagSupport {
             if (style != null) {
             	isThermometer = style.contains("thermometer");
             	isSearchTitle = style.contains("searchTitle");
+                isJournalTitle = style.contains("journalTitle");
                 isLinkSearch = style.contains("linkSearch");
                 isDate = style.contains("date");
                 isLink = style.contains("link");
@@ -584,6 +592,41 @@ public class ItemTag extends TagSupport {
 
                             out.print("<a href=\"" + url + "\">" + Utils.addEntities(val.getValue()) + "</a>");
 
+                        }
+                        else if (isJournalTitle) {
+                            String valor = val.getValue();
+                            String url = null;
+
+                            try {
+                                DiscoverQuery queryArgs = new DiscoverQuery();
+                                SearchService searchService = SearchUtils.getSearchService();
+                                String fq = searchService.toFilterQuery(context, "title", "contains", valor).getFilterQuery();
+                                queryArgs.addFilterQueries(fq);
+                                DiscoverResult qResults = searchService.search(context, null, queryArgs);
+
+                                List<DSpaceObject> dsoResults = qResults.getDspaceObjects();
+                                Item item = null;
+                                String handle = null;
+
+                                if (dsoResults.size() > 0) {
+                                    item = (Item) dsoResults.get(0);
+                                    handle = item.getHandle();
+
+                                    if (handle != null) {
+                                        url = request.getContextPath() + "/handle/" + handle;
+                                    }
+                                }
+                            } catch (SearchServiceException e) {
+                                log.error(e);
+                            }
+
+                            if (url == null) {
+                                valor = Utils.addEntities(val.getValue());
+                                // Usa página de pesquisa como fallback
+                                url = request.getContextPath() + "/simple-search?filter_field_1=title&filter_type_1=contains&filter_value_1=" + valor.replaceAll(":", " ");
+                            }
+
+                            out.print("<a href=\"" + url + "\">" + Utils.addEntities(val.getValue()) + "</a>");
                         }
                         else if (isLinkSearch) 
                         {
