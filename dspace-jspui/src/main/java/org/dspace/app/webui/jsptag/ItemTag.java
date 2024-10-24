@@ -460,6 +460,7 @@ public class ItemTag extends TagSupport {
             boolean isLinkSearch = false;
             boolean isJournalTitle = false;
             boolean isSearchTitle = false;
+            boolean isJournalsPortalUri = false;
             boolean isThermometer = false;
 
             String style = null;
@@ -484,6 +485,7 @@ public class ItemTag extends TagSupport {
             	isThermometer = style.contains("thermometer");
             	isSearchTitle = style.contains("searchTitle");
                 isJournalTitle = style.contains("journalTitle");
+                isJournalsPortalUri = style.contains("journalsPortalUri");
                 isLinkSearch = style.contains("linkSearch");
                 isDate = style.contains("date");
                 isLink = style.contains("link");
@@ -593,40 +595,18 @@ public class ItemTag extends TagSupport {
                             out.print("<a href=\"" + url + "\">" + Utils.addEntities(val.getValue()) + "</a>");
 
                         }
-                        else if (isJournalTitle) {
+                        else if (isJournalTitle || isJournalsPortalUri) {
                             String valor = val.getValue();
-                            String url = null;
-
-                            try {
-                                DiscoverQuery queryArgs = new DiscoverQuery();
-                                SearchService searchService = SearchUtils.getSearchService();
-                                String fq = searchService.toFilterQuery(context, "title", "contains", valor).getFilterQuery();
-                                queryArgs.addFilterQueries(fq);
-                                DiscoverResult qResults = searchService.search(context, null, queryArgs);
-
-                                List<DSpaceObject> dsoResults = qResults.getDspaceObjects();
-                                Item item = null;
-                                String handle = null;
-
-                                if (dsoResults.size() > 0) {
-                                    item = (Item) dsoResults.get(0);
-                                    handle = item.getHandle();
-
-                                    if (handle != null) {
-                                        url = request.getContextPath() + "/handle/" + handle;
-                                    }
-                                }
-                            } catch (SearchServiceException e) {
-                                log.error(e);
-                            }
+                            String url = getUrlFromTitulo(valor, context, request);
 
                             if (url == null) {
-                                valor = Utils.addEntities(val.getValue());
                                 // Usa página de pesquisa como fallback
-                                url = request.getContextPath() + "/simple-search?filter_field_1=title&filter_type_1=contains&filter_value_1=" + valor.replaceAll(":", " ");
+                                url = request.getContextPath()
+                                        + "/simple-search?filter_field_1=title&filter_type_1=contains&filter_value_1="
+                                        + valor.replaceAll(":", " ");
                             }
 
-                            out.print("<a href=\"" + url + "\">" + Utils.addEntities(val.getValue()) + "</a>");
+                            out.print("<a href=\"" + url + "\">" + Utils.addEntities(valor) + "</a>");
                         }
                         else if (isLinkSearch) 
                         {
@@ -1260,6 +1240,38 @@ public class ItemTag extends TagSupport {
         }
 
         out.println("</td></tr></table>");
+    }
+
+    private String getUrlFromTitulo(String titulo, Context context, HttpServletRequest request) throws SQLException {
+        String url = null;
+
+        try {
+            DiscoverQuery queryArgs = new DiscoverQuery();
+            SearchService searchService = SearchUtils.getSearchService();
+            String fq = searchService.toFilterQuery(context, "title", "contains", titulo).getFilterQuery();
+            queryArgs.addFilterQueries(fq);
+            DiscoverResult qResults = searchService.search(context, null, queryArgs);
+
+            List<DSpaceObject> dsoResults = qResults.getDspaceObjects();
+
+            for (DSpaceObject dso : dsoResults) {
+                if (dso.getType() != Constants.ITEM) {
+                    continue;
+                }
+
+                String handle = dso.getHandle();
+
+                if (handle != null) {
+                    url = request.getContextPath() + "/handle/" + handle;
+                }
+
+                break;
+            }
+        } catch (SearchServiceException e) {
+            log.error(e);
+        }
+
+        return url;
     }
 
     /**
