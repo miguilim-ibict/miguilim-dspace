@@ -69,6 +69,8 @@ import org.dspace.discovery.SearchUtils;
 import org.dspace.eperson.Group;
 import org.dspace.eperson.factory.EPersonServiceFactory;
 import org.dspace.eperson.service.GroupService;
+import org.dspace.handle.factory.HandleServiceFactory;
+import org.dspace.handle.service.HandleService;
 import org.dspace.workflow.WorkflowItemService;
 import org.dspace.workflow.factory.WorkflowServiceFactory;
 
@@ -273,6 +275,8 @@ public class ItemTag extends TagSupport {
 
     private final transient GroupService groupService = EPersonServiceFactory.getInstance().getGroupService();
 
+    private final transient HandleService handleService = HandleServiceFactory.getInstance().getHandleService();
+
     static {
         int i;
 
@@ -461,6 +465,7 @@ public class ItemTag extends TagSupport {
             boolean isJournalTitle = false;
             boolean isSearchTitle = false;
             boolean isJournalsPortalUri = false;
+            boolean isMiguilimUri = false;
             boolean isThermometer = false;
 
             String style = null;
@@ -486,6 +491,7 @@ public class ItemTag extends TagSupport {
             	isSearchTitle = style.contains("searchTitle");
                 isJournalTitle = style.contains("journalTitle");
                 isJournalsPortalUri = style.contains("journalsPortalUri");
+                isMiguilimUri = style.contains("miguilimUri");
                 isLinkSearch = style.contains("linkSearch");
                 isDate = style.contains("date");
                 isLink = style.contains("link");
@@ -607,6 +613,21 @@ public class ItemTag extends TagSupport {
                             }
 
                             out.print("<a href=\"" + url + "\">" + Utils.addEntities(valor) + "</a>");
+                        }
+                        else if (isMiguilimUri) {
+                            String valor = val.getValue();
+                            String handle = handleService.resolveUrlToHandle(context, valor);
+                            String titulo = null;
+
+                            if (handle != null) {
+                                DSpaceObject dso = handleService.resolveToObject(context, handle);
+
+                                if (dso != null) {
+                                    titulo = dso.getName();
+                                }
+                            }
+
+                            out.print("<a href=\"" + valor + "\">" + Utils.addEntities(titulo == null ? valor : titulo) + "</a>");
                         }
                         else if (isLinkSearch) 
                         {

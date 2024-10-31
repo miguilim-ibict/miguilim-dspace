@@ -1181,15 +1181,13 @@
 
                 <field>
                     <dc-schema>dc</dc-schema>
-                    <dc-element>identifier</dc-element>
-                    <dc-qualifier>journalsportaluri</dc-qualifier>
+                    <dc-element>relation</dc-element>
+                    <dc-qualifier>ispartof</dc-qualifier>
                     <repeatable>true</repeatable>
                     <label>Portal de periódicos: </label>
                     <input-type>onebox</input-type>
-                    <hint>Indique o título do portal de periódicos que hospeda a revista. Portal de
-                        periódicos é o portal institucional em que o site oficial da revista se
-                        encontra hospedado. Exemplos: Portal de Periódicos UFSC, Portal de
-                        Periódicos Eletrônicos Científicos da UNICAMP. </hint>
+                    <hint>Indique a URI do registro no Miguilim do portal de periódicos que
+                        hospeda a revista. </hint>
                     <required></required>
                 </field>
 
