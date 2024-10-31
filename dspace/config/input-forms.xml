@@ -1386,15 +1386,13 @@
 
                 <field>
                     <dc-schema>dc</dc-schema>
-                    <dc-element>identifier</dc-element>
-                    <dc-qualifier>journaluri</dc-qualifier>
+                    <dc-element>relation</dc-element>
+                    <dc-qualifier>haspart</dc-qualifier>
                     <repeatable>true</repeatable>
                     <label>Revistas do portal: </label>
                     <input-type>onebox</input-type>
-                    <hint>Indique o título das revistas hospedadas no portal de revistas. O campo
-                        deve ser preenchido da mesma forma que o campo "Key title", presente no
-                        registro da revista na rede ISSN. Essa informação pode ser verificada no
-                        link: https://portal.issn.org/ </hint>
+                    <hint>Indique as URIs dos registros no Miguilim das revistas hospedadas no
+                        portal de revistas. </hint>
                     <required>CAMPO OBRIGATÓRIO: Indique a URI, do cadastro no Miguilim. </required>
                 </field>
 
