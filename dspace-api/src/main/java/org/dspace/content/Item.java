@@ -11,20 +11,32 @@ import org.apache.log4j.Logger;
 import org.dspace.content.comparator.NameAscendingComparator;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.ItemService;
+import org.dspace.content.service.MetadataFieldService;
 import org.dspace.core.Constants;
 import org.dspace.core.Context;
+import org.dspace.discovery.DiscoverQuery;
+import org.dspace.discovery.DiscoverResult;
+import org.dspace.discovery.SearchService;
+import org.dspace.discovery.SearchServiceException;
+import org.dspace.discovery.SearchUtils;
 import org.dspace.eperson.EPerson;
+import org.dspace.handle.factory.HandleServiceFactory;
+import org.dspace.handle.service.HandleService;
 import org.dspace.termometro.util.CalculadoraTermometro;
 import org.hibernate.annotations.Sort;
 import org.hibernate.annotations.SortType;
 import org.hibernate.proxy.HibernateProxyHelper;
 
 import javax.persistence.*;
+import javax.servlet.http.HttpServletRequest;
 
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Class representing an item in DSpace.
@@ -93,7 +105,13 @@ public class Item extends DSpaceObject implements DSpaceObjectLegacySupport
     private final List<Bundle> bundles = new ArrayList<>();
 
     @Transient
-    private transient ItemService itemService;
+    private transient ItemService itemService = ContentServiceFactory.getInstance().getItemService();
+
+    @Transient
+    private transient HandleService handleService = HandleServiceFactory.getInstance().getHandleService();
+
+    @Transient
+    private transient MetadataFieldService metadataFieldService = ContentServiceFactory.getInstance().getMetadataFieldService();
 
     /**
      * Protected constructor, create object using:
@@ -393,6 +411,126 @@ public class Item extends DSpaceObject implements DSpaceObjectLegacySupport
             updateReferenciaBibliografica(context, "pt_BR");
             updateTermometro(context, "pt_BR");
         }
+
+        updateRelacionamentos(context);
+    }
+
+    private boolean possuiCampo(String campo) {
+        List<MetadataValue> mv = itemService.getMetadataByMetadataString(this, campo);
+        return mv != null && mv.size() > 0;
+    }
+
+    private List<Item> getItensRelacionados(Context context, String campo) throws SQLException {
+        List<MetadataValue> valoresMetadado = itemService.getMetadataByMetadataString(this, campo);
+        List<Item> itensRelacionados = new ArrayList<Item>();
+
+        for (MetadataValue mv : valoresMetadado) {
+            String handle = handleService.resolveUrlToHandle(context, mv.getValue());
+
+            if (handle == null) {
+                continue;
+            }
+
+            DSpaceObject dso = handleService.resolveToObject(context, handle);
+
+            if (dso == null || dso.getType() != Constants.ITEM) {
+                continue;
+            }
+
+            itensRelacionados.add((Item) dso);
+        }
+
+        return itensRelacionados;
+    }
+
+    private void adicionaItemNoItemRelacionado(Context context, String campo, Item itemRelacionado) throws SQLException {
+        MetadataField mfCampo = getCampo(context, campo);
+        String schema = mfCampo.getMetadataSchema().getName();
+        String element = mfCampo.getElement();
+        String qualifier = mfCampo.getQualifier();
+
+        String handleCanonico = getHandle().split("\\.")[0];
+        String url = handleService.resolveToURL(context, handleCanonico);
+
+        boolean contemUrl = itemService.getMetadataByMetadataString(itemRelacionado, campo).stream().anyMatch(mv -> mv.getValue().equals(url));
+
+        if (contemUrl) {
+            return;
+        }
+
+        itemService.addMetadata(context, itemRelacionado, schema, element, qualifier, "pt_BR", url);
+    }
+
+    private void updateRelacionamentos(Context context) throws SQLException {
+        String antigoCampoParaRevistasDoPortal = "dc.identifier.journaluri";
+        String antigoCampoParaPortalDaRevista = "dc.identifier.journalsportaluri";
+        String novoCampoParaPortalDaRevista = "dc.relation.ispartof";
+        String novoCampoParaRevistasDoPortal = "dc.relation.haspart";
+
+        if (!possuiCampo(novoCampoParaPortalDaRevista) && !possuiCampo(novoCampoParaRevistasDoPortal)) {
+            return;
+        }
+
+        String campoItemAlterado, campoItemRelacionado, antigoCampoItemAlterado, antigoCampoItemRelacionado;
+
+        if (possuiCampo(novoCampoParaPortalDaRevista)) {
+            campoItemAlterado = novoCampoParaPortalDaRevista;
+            campoItemRelacionado = novoCampoParaRevistasDoPortal;
+            antigoCampoItemAlterado = antigoCampoParaPortalDaRevista;
+            antigoCampoItemRelacionado = antigoCampoParaRevistasDoPortal;
+        } else {
+            campoItemAlterado = novoCampoParaRevistasDoPortal;
+            campoItemRelacionado = novoCampoParaPortalDaRevista;
+            antigoCampoItemAlterado = antigoCampoParaRevistasDoPortal;
+            antigoCampoItemRelacionado = antigoCampoParaPortalDaRevista;
+        }
+
+        if (possuiCampo(antigoCampoItemAlterado)) {
+            apagaCampo(context, antigoCampoItemAlterado);
+        }
+
+        List<Item> itensRelacionados = getItensRelacionados(context, campoItemAlterado);
+
+        for (Item itemRelacionado : itensRelacionados) {
+            if (itemRelacionado.possuiCampo(antigoCampoItemRelacionado)) {
+                if (!itemRelacionado.possuiCampo(campoItemRelacionado)) {
+                    // Item relacionado não possui o campo novo, então é melhor
+                    // não mexer de forma automática pois isso pode causar
+                    // problemas.
+                    continue;
+                }
+
+                // Se a execução chegar aqui, significa que o item possui tanto
+                // o campo antigo quanto o novo. Isso não deve acontecer, mas se
+                // acontecer, o antigo pode ser apagado para tirar a duplicação.
+                itemRelacionado.apagaCampo(context, antigoCampoItemRelacionado);
+            }
+
+            adicionaItemNoItemRelacionado(context, campoItemRelacionado, itemRelacionado);
+
+            if (itemRelacionado.possuiCampo(antigoCampoItemRelacionado)) {
+                itemRelacionado.apagaCampo(context, antigoCampoItemRelacionado);
+            }
+        }
+    }
+
+    private MetadataField getCampo(Context context, String campo) throws SQLException {
+        String[] partes = campo.split("\\.");
+        String schema = partes.length >= 1 ? partes[0] : null;
+        String element = partes.length >= 2 ? partes[1] : null;
+        String qualifier = partes.length >= 3 ? partes[2] : null;
+        MetadataField mf = metadataFieldService.findByElement(context, schema, element, qualifier);
+
+        return mf;
+    }
+
+    private void apagaCampo(Context context, String campo) throws SQLException {
+        MetadataField mf = getCampo(context, campo);
+        String schema = mf.getMetadataSchema().getName();
+        String element = mf.getElement();
+        String qualifier = mf.getQualifier();
+
+        itemService.clearMetadata(context, this, schema, element, qualifier, "pt_BR");
     }
 
     private void updateReferenciaBibliografica(Context context, String idioma) throws SQLException {
