@@ -410,6 +410,7 @@ public class Item extends DSpaceObject implements DSpaceObjectLegacySupport
         if (isItemDaColecao(REVISTAS)) {
             updateReferenciaBibliografica(context, "pt_BR");
             updateTermometro(context, "pt_BR");
+            updatePercentualDePreenchimento(context, "pt_BR");
         }
 
         updateRelacionamentos(context);
@@ -609,6 +610,91 @@ public class Item extends DSpaceObject implements DSpaceObjectLegacySupport
         } catch (IOException e) {
             throw new RuntimeException("Can't create an Identifier!", e);
         }
+    }
+
+    private String calcularPercentualDePreenchimento(Context context, Item item) throws SQLException {
+        String[] campos = {
+            "dc.description.abstract",
+            "dc.title",
+            "dc.title.abbreviated",
+            "dc.title.proper",
+            "dc.title.other",
+            "dc.title.previous",
+            "dc.title.later",
+            "dc.identifier.issn",
+            "dc.identifier.issnl",
+            "dc.description.situation",
+            "dc.date.startyear",
+            "dc.date.endyear",
+            "dc.identifier.url",
+            "dc.identifier.interoperabilityprotocol",
+            "dc.identifier.persistentidentifier",
+            "dc.language",
+            "dc.subject.cnpq",
+            "dc.publisher.name",
+            "dc.publisher.subordinate",
+            "dc.identifier.publisher",
+            "dc.publisher.legalnature",
+            "dc.contributor.editor",
+            "dc.identifier.editor",
+            "dc.identifier.email",
+            "dc.description.cep",
+            "dc.description.region",
+            "dc.description.state",
+            "dc.description.city",
+            "dc.description.neighborhood",
+            "dc.description.street",
+            "dc.description.building",
+            "dc.description.phone",
+            "dc.description.modalityofpublication",
+            "dc.description.periodicity",
+            "dc.date.monthofpublication",
+            "dc.description.editorialboardperiodicity",
+            "dc.date.editorialboardmonthofpublication",
+            "dc.description.peerreview",
+            "dc.description.reviewerspublication",
+            "dc.description.reviewerstypeofpublication",
+            "dc.description.reviewersperiodicityofpublication",
+            "dc.description.peerreviewexternality",
+            "dc.description.peerreviewdocuments",
+            "dc.contributor.publishingresponsable",
+            "dc.rights.preprintsubmission",
+            "dc.rights.preprint",
+            "dc.rights.sealcolor",
+            "dc.rights.time",
+            "dc.rights.access",
+            "dc.rights.embargedtime",
+            "dc.rights.creativecommons",
+            "dc.description.publicationfees",
+            "dc.description.submissionfees",
+            "dc.description.apc",
+            "dc.description.codeofethics",
+            "dc.description.referenceguidelines",
+            "dc.description.plagiarismdetection",
+            "dc.description.digitalpreservation",
+            "dc.rights.researchdata",
+            "dc.description.qualisarea",
+            "dc.description.qualisclassification",
+            "dc.description.socialnetworks",
+            "dc.relation.informationservices",
+            "dc.identifier.journalsportaluri",
+            "dc.relation.oasisbr",
+            "dc.rights.authorpostprint",
+            "dc.rights.journalpostprint",
+        };
+
+        Double preenchimentoItem = (double)Arrays.stream(campos).filter((campo) -> possuiCampo(campo)).toArray().length;
+        Double PREENCHIMENTO_MAXIMO_POSSIVEL = (double)campos.length;
+        Double porcentagem = Math.floor((preenchimentoItem / PREENCHIMENTO_MAXIMO_POSSIVEL) * 100);
+
+        return String.valueOf(porcentagem);
+    }
+
+    private void updatePercentualDePreenchimento(Context context, String idioma) throws SQLException {
+        String porcentagemPreenchimento = calcularPercentualDePreenchimento(context, this);
+
+        // itemService.clearMetadata(context, this, "dc", "identifier", "percentage", idioma);
+        // itemService.addMetadata(context, this, "dc", "identifier", "percentage", idioma, porcentagemPreenchimento);
     }
 
     @Override
